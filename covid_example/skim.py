@@ -27,7 +27,8 @@ def dot(X, Z):
     return np.dot(X, Z[..., None])[..., 0]
 
 class SKIM():
-    def __init__(X, Y, hypers=None, ):
+
+    def __init__(X, Y, hypers=None):
         self.X = X
         self.Y = Y
         self.hypers = hypers
@@ -402,8 +403,15 @@ class SKIM():
 
     ### X - parameters, Y - data points, {alpha_i, beta_i, c} - hyperparameters, 
     ### N_samps - number of samples for visualization with corner
-    def main_posterior(X, Y, hypers, N_samps = 1000, labels=None):
+    def sample_posterior(self, hypers, num_dimensions=20,
+                          known_active_dimensions=0, 
+                          num_data=100, labels=None,  
+                          N_samps = 1000, num_chains=1, 
+                          device='cpu'):
 
+        X = self.X
+        Y = self.Y
+        hypers = self.hypers
         # args -- needed: num-chains
         # num_dimensions
         # active dimensions
