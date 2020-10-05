@@ -16,12 +16,13 @@ from numpyro.infer import MCMC, NUTS
 import matplotlib.pyplot as plt
 import corner
 
-# setup hyperparameters
-# hypers = {'expected_sparsity': max(1.0, X.shape[1]/2),
-#           'alpha1': alpha1, 'beta1': beta1,
-#           'alpha2': alpha2, 'beta2': beta2,
-#           'alpha3': alpha3, 'c': c,
-#           'alpha_obs': alpha_obs, 'beta_obs': beta_obs}
+# TODO: set up hyperparameters in main script. Template below
+# hypers = {'expected_sparsity': max(1.0, num_dimensions / 10),
+#               'sigma' : 3.0,
+#               'alpha1': 3.0, 'beta1': 1.0,
+#               'alpha2': 3.0, 'beta2': 1.0,
+#               'alpha3': 1.0, 'c': 1.0,
+#               'alpha_obs': 3.0, 'beta_obs': 1.0}
 
 def dot(X, Z):
     return np.dot(X, Z[..., None])[..., 0]
@@ -55,6 +56,9 @@ class SKIM():
 
     # Most of the model code is concerned with constructing the sparsity inducing prior.
     def model(self, X, Y, hypers):
+
+        kernel = self.kernel
+
         # Here X is the design matrix with N x p dimensions
         # read off dimensions P and N
         # S -  sparsity coeff
@@ -92,6 +96,8 @@ class SKIM():
     # MCMC sample of the kernel hyperparameters (eta1, xisq, ...).
     # Compare to theorem 5.1 in reference [1].
     def compute_singleton_mean_variance(self, X, Y, dimension, msq, lam, eta1, xisq, c, var_obs):
+        kernel = self.kernel
+
         P, N = X.shape[1], X.shape[0]
 
         probe = np.zeros((2, P))
@@ -122,6 +128,9 @@ class SKIM():
     # Compute the mean and variance of coefficient theta_ij for a MCMC sample of the
     # kernel hyperparameters (eta1, xisq, ...). Compare to theorem 5.1 in reference [1].
     def compute_pairwise_mean_variance(self, X, Y, dim1, dim2, msq, lam, eta1, xisq, c, var_obs):
+        
+        kernel = self.kernel
+
         # Here X is the design matrix with N x p dimensions
         # read off dimensions P and N
         P, N = X.shape[1], X.shape[0]
@@ -161,6 +170,8 @@ class SKIM():
     # the remaining values are {theta_ij} for i,j in the list `active_dims`,
     # sorted so that i < j.
     def sample_theta_space(self, X, Y, active_dims, msq, lam, eta1, xisq, c, var_obs): #(section B.5) ?
+        
+        kernel = self.kernel
         # Here X is the design matrix with N x p dimensions
         # read off dimensions P and N
         # and number of active dimensions
@@ -218,7 +229,10 @@ class SKIM():
 
     # MODIFICATION to original method to return flat posterior samples from the
     # MCMC, but only for active dimensions
-    def sample_theta_posterior(self, X, Y, active_dims, msq, lam, eta1, xisq, c, var_obs, N_samps, dim_pair_arr): 
+    def sample_theta_posterior(self, X, Y, active_dims, msq, lam, eta1, xisq, c, var_obs, num_samples, dim_pair_arr): 
+        
+        kernel = self.kernel
+
         P, N, M = X.shape[1], X.shape[0], len(active_dims)
         
         num_coefficients = P + M * (M - 1) // 2
@@ -284,9 +298,9 @@ class SKIM():
         # return posterior samples
         rng_key = random.PRNGKey(0)
         samps = numpyro.distributions.MultivariateNormal(loc = onp.array(mu_active), 
-                                                        covariance_matrix = cov_active).sample(rng_key, sample_shape = (1, N_samps))
+                                                        covariance_matrix = cov_active).sample(rng_key, sample_shape = (1, num_samples))
 
-        samps_new = onp.reshape(samps, (N_samps, len(all_active_dims)))
+        samps_new = onp.reshape(samps, (num_samples, len(all_active_dims)))
         
         return samps_new
 
@@ -342,9 +356,9 @@ class SKIM():
     def analyze_dimension(self, samples, X, Y, dimension, hypers):
         vmap_args = (samples['msq'], samples['lambda'], samples['eta1'], samples['xisq'], samples['var_obs'])
         mus, variances = vmap(lambda msq, lam, eta1, xisq, var_obs:
-                              compute_singleton_mean_variance(X, Y, dimension, msq, lam,
+                              self.compute_singleton_mean_variance(X, Y, dimension, msq, lam,
                                                               eta1, xisq, hypers['c'], var_obs))(*vmap_args)
-        mean, variance = gaussian_mixture_stats(mus, variances)
+        mean, variance = self.gaussian_mixture_stats(mus, variances)
         std = np.sqrt(variance)
         return mean, std
 
@@ -353,44 +367,48 @@ class SKIM():
     def analyze_pair_of_dimensions(self, samples, X, Y, dim1, dim2, hypers):
         vmap_args = (samples['msq'], samples['lambda'], samples['eta1'], samples['xisq'], samples['var_obs'])
         mus, variances = vmap(lambda msq, lam, eta1, xisq, var_obs:
-                              compute_pairwise_mean_variance(X, Y, dim1, dim2, msq, lam,
+                              self.compute_pairwise_mean_variance(X, Y, dim1, dim2, msq, lam,
                                                             eta1, xisq, hypers['c'], var_obs))(*vmap_args)
-        mean, variance = gaussian_mixture_stats(mus, variances)
+        mean, variance = self.gaussian_mixture_stats(mus, variances)
         std = np.sqrt(variance)
         return mean, std
 
 
     ### X - parameters, Y - data points, {alpha_i, beta_i, c} - hyperparameters, 
-    ### N_samps - number of samples for visualization with corner
-    def sample_posterior(self, num_dimensions=20,
-                          known_active_dimensions=0, 
+    ### num_samples - number of samples for visualization with corner
+    def generate_posterior(self, num_dimensions=20,
+                          known_active_dimensions=3, 
                           num_data=100, labels=None,  
                           num_samples = 1000, num_warmup=500,
                           num_chains=1, 
-                          device='cpu'):
+                          device='gpu'):
 
         X = self.X
         Y = self.Y
         hypers = self.hypers
+        sigma = hypers['sigma']
         # args -- needed: num-chains
         # num_dimensions
         # active dimensions
         
-        if labels == None:
+        if labels is None:
             labs = [str(_) for _ in range(X.shape[1])]
         else:
             labs = labels
-        
-        # set up hyperparameters
-        # hypers = {'expected_sparsity': max(1.0, X.shape[1]/2),
-        #           'alpha1': alpha1, 'beta1': beta1,
-        #           'alpha2': alpha2, 'beta2': beta2,
-        #           'alpha3': alpha3, 'c': c,
-        #           'alpha_obs': alpha_obs, 'beta_obs': beta_obs}
+
+
+        # TODO:set up Numpyro device (should maybe do this in main script ?)
+        numpyro.set_platform(device)
+        numpyro.set_host_device_count(num_chains)
 
         # do inference
         rng_key = random.PRNGKey(self.seed)
-        samples = self.run_inference(self.model, num_warmup, num_chains, num_samples, rng_key, X, Y, hypers)
+        samples = self.run_inference(self.model,
+                                     rng_key, 
+                                     X, Y, hypers,
+                                     num_warmup=num_warmup, 
+                                     num_chains=num_chains, 
+                                     num_samples=num_samples)
 
         # compute the mean and square root variance of each coefficient theta_i
         means, stds = vmap(lambda dim: self.analyze_dimension(samples, X, Y, dim, hypers))(np.arange(X.shape[1]))
@@ -444,7 +462,7 @@ class SKIM():
             ## Get posterior samples from the sample_theta_space_modified() method
             thetas = self.sample_theta_posterior(X, Y, active_dimensions, samples['msq'][-1], samples['lambda'][-1],
                                                 samples['eta1'][-1], samples['xisq'][-1], hypers['c'], 
-                                                samples['var_obs'][-1], N_samps, dim_pair_arr)
+                                                samples['var_obs'][-1], num_samples, dim_pair_arr)
             print("Active dimensions: " + str(active_dimensions))
             
             ##  Visualize the posterior from the example with corner
