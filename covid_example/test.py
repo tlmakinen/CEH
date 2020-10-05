@@ -67,7 +67,8 @@ def test_one():
 
 	skim_model = skim.SKIM(X, Y, hypers, seed=0)
 
-	all_active_dimensions, thetas, labels, pair_labs = skim_model.generate_posterior(known_active_dimensions=3, labels=None)
+	all_active_dimensions, thetas, labels, pair_labs = skim_model.generate_posterior(
+														known_active_dimensions=3, labels=None)
 	fig = corner.corner(thetas, labels = labels)
 
 	plt.show()
@@ -106,7 +107,8 @@ def test_two():
 
 		skim_model = skim.SKIM(X, Y, hypers, seed=0)
 
-		all_active_dimensions, thetas, labels, pair_labs = skim_model.generate_posterior(known_active_dimensions=n_dim, labels=None)
+		all_active_dimensions, thetas, labels, pair_labs = skim_model.generate_posterior(
+													known_active_dimensions=n_dim, labels=None)
 
 		# plot the last inference
 		if i == len(active_dimensions) -1:
@@ -175,7 +177,8 @@ def test_three():
 
 	skim_model = skim.SKIM(X, Y, hypers, seed=0)
 
-	all_active_dimensions, thetas, labels, pair_labs = skim_model.generate_posterior(known_active_dimensions=active_dimensions, labels=None)
+	all_active_dimensions, thetas, labels, pair_labs = skim_model.generate_posterior(
+										known_active_dimensions=active_dimensions, labels=None)
 
 	# plot the last inference
 	#if i == len(active_dimensions) -1:
@@ -204,7 +207,7 @@ def test_four():
 		sigma_obs = sigmas[i]
 
 		X, Y, expected_thetas, expected_pairwise = get_toy_data(N=num_data, P=num_dimensions,
-	                                                        S=active_dimensions, sigma_obs=sigma_obs)
+	                                                      S=active_dimensions, sigma_obs=sigma_obs)
 
 		hypers = {'expected_sparsity': max(1.0, num_dimensions / 10),
 	              'sigma' : 3.0,
@@ -217,7 +220,8 @@ def test_four():
 
 		skim_model = skim.SKIM(X, Y, hypers, seed=0)
 
-		all_active_dimensions, thetas, labels, pair_labs = skim_model.generate_posterior(known_active_dimensions=active_dimensions, labels=None)
+		all_active_dimensions, thetas, labels, pair_labs = skim_model.generate_posterior(
+											known_active_dimensions=active_dimensions, labels=None)
 
 		print('all active dimensions :', all_active_dimensions)
 

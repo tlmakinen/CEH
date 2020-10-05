@@ -27,6 +27,8 @@ import corner
 def dot(X, Z):
     return np.dot(X, Z[..., None])[..., 0]
 
+################################################################################################
+
 class SKIM():
 
     def __init__(self, X=None, Y=None, hypers=None, seed=0,
@@ -282,10 +284,8 @@ class SKIM():
         # sample from N(mu, covar)
         sample = mu + np.matmul(L, onp.random.randn(num_coefficients))
         
-        ####### ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ ##########
-        ####### ~~~~~~~~~~~~~ CHANGES to the original method ~~~~~~~~~~~~~~~~~~~ #########
         
-        # include active direct and pairwise interactions terms only 
+        # CHANGE: include active direct and pairwise interactions terms only 
         all_active_dims = active_dims + dim_pair_arr
         mu_active = np.array([mu[i] for i in all_active_dims])
         
@@ -454,10 +454,7 @@ class SKIM():
             # Draw a single sample of coefficients theta from the posterior, where we return all singleton
             # coefficients theta_i and pairwise coefficients theta_ij for i, j active dimensions. We use the
             # final MCMC sample obtained from the HMC sampler.
-            
-            
-            ####### ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ ##########
-            ####### ~~~~~~~~~~~~~ CHANGES to the original method ~~~~~~~~~~~~~~~~~~~ #########
+      
             
             ## Get posterior samples from the sample_theta_space_modified() method
             thetas = self.sample_theta_posterior(X, Y, active_dimensions, samples['msq'][-1], samples['lambda'][-1],
@@ -480,4 +477,7 @@ class SKIM():
 
     def make_corner_plot(self, thetas, labels):
         fig = corner.corner(thetas, labels=labels)
+
+################################################################################################
+
 
